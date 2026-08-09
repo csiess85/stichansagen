@@ -175,5 +175,20 @@ const plusBonus = { bonus: 10, perTrick: 1, perDiff: 0, wrongBase: 0, tricksWhen
 ok(rs(2, 4, plusBonus) === 4, 'Stiche+Bonus bei falsch = 4');
 ok(rs(4, 4, plusBonus) === 14, 'Stiche+Bonus bei richtig = 14');
 
+console.log('\n== Sichtbarkeit: [hidden] gegen eigene display-Regeln ==');
+// styles.css inline einspielen, damit getComputedStyle die Kaskade sieht.
+const css = fs.readFileSync(path.join(DIR, 'styles.css'), 'utf8');
+const html4 = html.replace('</head>', '<style>' + css + '</style></head>')
+                  .replace('<link rel="stylesheet" href="styles.css">', '');
+const dom4 = new JSDOM(html4, { url: 'https://example.com/x/', runScripts: 'outside-only', pretendToBeVisual: true });
+dom4.window.scrollTo = () => {};
+dom4.window.eval(fs.readFileSync(path.join(DIR, 'app.js'), 'utf8'));
+const d4 = dom4.window.document;
+const disp = sel => dom4.window.getComputedStyle(d4.querySelector(sel)).display;
+for (const sel of ['#sheet', '#tabbar', '#screen-setup', '#screen-game', '#screen-table']) {
+  ok(disp(sel) === 'none', `${sel} beim Start unsichtbar (display: ${disp(sel)})`);
+}
+ok(disp('#screen-home') !== 'none', 'Startbildschirm sichtbar (display: ' + disp('#screen-home') + ')');
+
 console.log('\n' + (failed ? `${failed} Test(s) fehlgeschlagen` : 'Alle Tests bestanden'));
 process.exit(failed ? 1 : 0);

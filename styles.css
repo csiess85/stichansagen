@@ -254,3 +254,9 @@ table.score tr.pending td{color:var(--muted);font-style:italic}
   .sheet-panel{max-width:680px;margin-inline:auto;border-radius:18px;margin-bottom:16px}
   .sheet{align-items:center;justify-content:center}
 }
+
+/* Bewusst als letzte Regel: .sheet, .tabbar, .grid2 und .field setzen display und
+   sind genauso spezifisch wie [hidden]. Ohne diese Regel überstimmen sie das
+   display:none des Browsers – das Bearbeiten-Popup und die Tab-Leiste wären
+   dauerhaft sichtbar. */
+[hidden]{display:none !important}
