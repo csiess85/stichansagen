@@ -125,14 +125,21 @@ function range(from, to) {
 
 function buildCardCounts(cfg) {
   const max = Math.max(1, cfg.maxCards | 0);
+  let counts;
   switch (cfg.mode) {
-    case 'up':     return range(1, max);
-    case 'down':   return range(max, 1);
-    case 'downup': return max === 1 ? [1] : [...range(max, 1), ...range(2, max)];
-    case 'fixed':  return Array(Math.max(1, cfg.rounds | 0)).fill(Math.max(1, cfg.fixedCards | 0));
+    case 'up':     counts = range(1, max); break;
+    case 'down':   counts = range(max, 1); break;
+    case 'downup': counts = max === 1 ? [1] : [...range(max, 1), ...range(2, max)]; break;
+    case 'fixed':  counts = Array(Math.max(1, cfg.rounds | 0)).fill(Math.max(1, cfg.fixedCards | 0)); break;
     case 'updown':
-    default:       return max === 1 ? [1] : [...range(1, max), ...range(max - 1, 1)];
+    default:       counts = max === 1 ? [1] : [...range(1, max), ...range(max - 1, 1)];
   }
+  // Hausregel: nach dem regulären Verlauf noch je Spieler eine Runde mit einer Karte,
+  // damit jeder einmal bei einer Karte gibt.
+  if (cfg.extraSingles && cfg.players > 0) {
+    counts = [...counts, ...Array(cfg.players).fill(1)];
+  }
+  return counts;
 }
 
 /* ---------- Punkte ---------- */
@@ -282,6 +289,7 @@ function newDraft() {
     name: '',
     players: [{ id: uid(), name: '' }, { id: uid(), name: '' }, { id: uid(), name: '' }],
     mode: 'updown',
+    extraSingles: true,
     deck: 60,
     maxCards: 20,
     rounds: 10,
@@ -332,6 +340,7 @@ function renderSetup() {
     }));
   }
 
+  $('#cfgExtraSingles').checked = d.extraSingles;
   $('#setupDeck').value = String(d.deck);
   $('#setupMaxCards').value = String(d.maxCards);
   $('#setupRounds').value = String(d.rounds);
@@ -342,12 +351,7 @@ function renderSetup() {
   $('#setupMaxCards').closest('.field').hidden = isFixed;
   $('#setupDeck').closest('.field').hidden = isFixed;
 
-  const counts = buildCardCounts(cfgFromDraft(d));
-  const preview = counts.length > 12
-    ? counts.slice(0, 6).join(', ') + ' … ' + counts.slice(-3).join(', ')
-    : counts.join(', ');
-  $('#setupPreview').textContent =
-    `${counts.length} Runden · Karten je Runde: ${preview}`;
+  $('#setupPreview').textContent = previewText();
 
   // Wertungs-Chips
   const pBox = $('#setupPreset');
@@ -388,7 +392,8 @@ function formulaText(sc) {
 }
 
 function cfgFromDraft(d) {
-  return { mode: d.mode, maxCards: d.maxCards, rounds: d.rounds, fixedCards: d.fixedCards };
+  return { mode: d.mode, maxCards: d.maxCards, rounds: d.rounds, fixedCards: d.fixedCards,
+           extraSingles: d.extraSingles, players: d.players.length };
 }
 
 function syncMax() {
@@ -923,6 +928,10 @@ function bindEvents() {
     ui.draft.preset = 'custom'; markPresetCustom();
     $('#formulaPreview').textContent = formulaText(ui.draft.scoring);
   };
+  $('#cfgExtraSingles').onchange = e => {
+    ui.draft.extraSingles = e.target.checked;
+    $('#setupPreview').textContent = previewText();
+  };
   $('#cfgStrictDealer').onchange = e => { ui.draft.strictDealer = e.target.checked; };
 
   $('#btnCancelSetup').onclick = () => show('home');
@@ -971,11 +980,14 @@ function markPresetCustom() {
 }
 
 function previewText() {
-  const counts = buildCardCounts(cfgFromDraft(ui.draft));
+  const d = ui.draft;
+  const counts = buildCardCounts(cfgFromDraft(d));
   const preview = counts.length > 12
-    ? counts.slice(0, 6).join(', ') + ' … ' + counts.slice(-3).join(', ')
+    ? counts.slice(0, 6).join(', ') + ' … ' + counts.slice(-4).join(', ')
     : counts.join(', ');
-  return `${counts.length} Runden · Karten je Runde: ${preview}`;
+  const extra = d.extraSingles
+    ? ` (davon ${d.players.length} Einer-Runden zum Schluss)` : '';
+  return `${counts.length} Runden${extra} · Karten je Runde: ${preview}`;
 }
 
 /* =========================================================

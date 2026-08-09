@@ -52,7 +52,9 @@ const modeChips = $$('#setupMode .chip');
 click(modeChips.find(c => c.textContent === 'Feste Runden'));
 setVal($('#setupRounds'), '2');
 setVal($('#setupFixedCards'), '2');
-ok($('#setupPreview').textContent.includes('2 Runden'), 'Vorschau: ' + $('#setupPreview').textContent);
+$('#cfgExtraSingles').checked = false;
+$('#cfgExtraSingles').dispatchEvent(new window.Event('change', { bubbles: true }));
+ok($('#setupPreview').textContent.startsWith('2 Runden ·'), 'Vorschau: ' + $('#setupPreview').textContent);
 
 const presetChips = $$('#setupPreset .chip');
 click(presetChips.find(c => c.textContent === 'Wizard'));
@@ -164,6 +166,23 @@ ok(JSON.stringify(bcc({ mode: 'downup', maxCards: 3 })) === '[3,2,1,2,3]', 'ab u
 ok(JSON.stringify(bcc({ mode: 'fixed', rounds: 3, fixedCards: 5 })) === '[5,5,5]', 'feste Runden');
 ok(JSON.stringify(bcc({ mode: 'updown', maxCards: 1 })) === '[1]', 'Sonderfall max=1');
 
+console.log('\n== Zusätzliche Einer-Runden je Spieler ==');
+ok(JSON.stringify(bcc({ mode: 'updown', maxCards: 5, extraSingles: true, players: 4 }))
+   === '[1,2,3,4,5,4,3,2,1,1,1,1,1]', '4 Spieler, max 5: 9 + 4 Einer-Runden → '
+   + bcc({ mode: 'updown', maxCards: 5, extraSingles: true, players: 4 }).join(','));
+ok(bcc({ mode: 'updown', maxCards: 5, extraSingles: true, players: 4 }).length === 13,
+   'insgesamt 13 Runden');
+ok(bcc({ mode: 'updown', maxCards: 5, extraSingles: true, players: 6 }).length === 15,
+   '6 Spieler: 9 + 6 = 15 Runden');
+ok(bcc({ mode: 'updown', maxCards: 5, extraSingles: true, players: 4 }).slice(-4)
+   .every(c => c === 1), 'die letzten 4 Runden haben genau eine Karte');
+ok(JSON.stringify(bcc({ mode: 'updown', maxCards: 5, extraSingles: false, players: 4 }))
+   === '[1,2,3,4,5,4,3,2,1]', 'ohne Option unverändert');
+ok(JSON.stringify(bcc({ mode: 'up', maxCards: 3, extraSingles: true, players: 3 }))
+   === '[1,2,3,1,1,1]', 'greift auch bei aufsteigend');
+ok(JSON.stringify(bcc({ mode: 'updown', maxCards: 5, extraSingles: true }))
+   === '[1,2,3,4,5,4,3,2,1]', 'ohne Spielerzahl (alter Spielstand) unverändert');
+
 const rs = api.roundScore;
 const wiz = { bonus: 20, perTrick: 10, perDiff: -10, wrongBase: 0, tricksWhenWrong: false };
 ok(rs(3, 3, wiz) === 50, 'Wizard richtig 3 Stiche = 50');
@@ -242,6 +261,43 @@ ok(cellR7.querySelector('.cell-sub').textContent.includes('+20'), 'Runde 7 zeigt
 const cellR6 = rows[5].querySelectorAll('td')[evaIdx + 1];
 ok(cellR6.querySelector('.cell-sub').textContent.includes('+10'), 'Runde 6 zeigt +10: '
    + cellR6.querySelector('.cell-sub').textContent);
+
+console.log('\n== Einer-Runden im Setup ==');
+const dom5 = new JSDOM(html, { url: 'https://example.com/z/', runScripts: 'outside-only', pretendToBeVisual: true });
+dom5.window.scrollTo = () => {};
+dom5.window.eval(fs.readFileSync(path.join(DIR, 'app.js'), 'utf8'));
+const d5 = dom5.window.document;
+const q5 = sel => d5.querySelector(sel);
+const qa5 = sel => Array.from(d5.querySelectorAll(sel));
+const c5 = n => n.dispatchEvent(new dom5.window.MouseEvent('click', { bubbles: true }));
+const s5 = (n, v) => { n.value = v; n.dispatchEvent(new dom5.window.Event('input', { bubbles: true })); };
+
+c5(q5('#btnNewGame'));
+ok(q5('#cfgExtraSingles').checked === true, 'Option bei "Auf und ab" standardmäßig aktiv');
+['A', 'B', 'C'].forEach((n, i) => s5(qa5('#setupPlayers input')[i], n));
+s5(q5('#setupMaxCards'), '3');            // 3 Spieler, max 3 -> 1,2,3,2,1 + 1,1,1
+ok(q5('#setupPreview').textContent === '8 Runden (davon 3 Einer-Runden zum Schluss) · Karten je Runde: 1, 2, 3, 2, 1, 1, 1, 1',
+   'Vorschau: ' + q5('#setupPreview').textContent);
+c5(q5('#btnAddPlayer'));                   // 4. Spieler -> eine Einer-Runde mehr
+s5(qa5('#setupPlayers input')[3], 'D');
+ok(q5('#setupPreview').textContent.startsWith('9 Runden (davon 4 Einer-Runden'),
+   'Spielerzahl wirkt sofort: ' + q5('#setupPreview').textContent);
+q5('#cfgExtraSingles').checked = false;
+q5('#cfgExtraSingles').dispatchEvent(new dom5.window.Event('change', { bubbles: true }));
+ok(q5('#setupPreview').textContent === '5 Runden · Karten je Runde: 1, 2, 3, 2, 1',
+   'abschaltbar: ' + q5('#setupPreview').textContent);
+q5('#cfgExtraSingles').checked = true;
+q5('#cfgExtraSingles').dispatchEvent(new dom5.window.Event('change', { bubbles: true }));
+
+c5(q5('#btnStartGame'));
+const g5 = JSON.parse(dom5.window.localStorage.getItem('stichansagen.v1')).games[0];
+ok(g5.rounds.length === 9, 'Spiel hat 9 Runden');
+ok(JSON.stringify(g5.rounds.map(r => r.cards)) === '[1,2,3,2,1,1,1,1,1]',
+   'Kartenfolge gespeichert: ' + g5.rounds.map(r => r.cards).join(','));
+ok(JSON.stringify(g5.rounds.slice(-4).map(r => r.dealer)) === '[1,2,3,0]',
+   'Geber rotiert auch in den Einer-Runden weiter: ' + g5.rounds.slice(-4).map(r => r.dealer).join(','));
+ok(new Set(g5.rounds.slice(-4).map(r => r.dealer)).size === 4,
+   'in den 4 Einer-Runden gibt jeder Spieler genau einmal');
 
 console.log('\n== Sichtbarkeit: [hidden] gegen eigene display-Regeln ==');
 // styles.css inline einspielen, damit getComputedStyle die Kaskade sieht.
