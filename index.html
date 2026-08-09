@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0f172a">
+<meta name="description" content="Auswertung für das Kartenspiel Stichansagen – offline, ohne Login, alles lokal im Browser.">
+<title>Stichansagen</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon.svg">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<header class="appbar">
+  <button class="iconbtn" id="btnBack" hidden aria-label="Zurück">‹</button>
+  <h1 id="appTitle">Stichansagen</h1>
+  <button class="iconbtn" id="btnTheme" aria-label="Design wechseln">◐</button>
+</header>
+
+<main id="main">
+
+  <!-- ============ HOME ============ -->
+  <section class="screen" id="screen-home">
+    <div class="pad">
+      <button class="btn primary big" id="btnNewGame">+ Neues Spiel</button>
+
+      <h2 class="section-title">Laufende Spiele</h2>
+      <div id="listRunning" class="cardlist"></div>
+
+      <h2 class="section-title">Beendete Spiele</h2>
+      <div id="listFinished" class="cardlist"></div>
+
+      <div class="tools">
+        <button class="btn ghost" id="btnExport">Daten exportieren</button>
+        <button class="btn ghost" id="btnImport">Daten importieren</button>
+        <input type="file" id="fileImport" accept="application/json,.json" hidden>
+      </div>
+      <p class="hint">Alle Daten liegen nur in diesem Browser (localStorage). Kein Konto, kein Server.</p>
+    </div>
+  </section>
+
+  <!-- ============ SETUP ============ -->
+  <section class="screen" id="screen-setup" hidden>
+    <div class="pad">
+      <label class="field">
+        <span>Name des Spiels</span>
+        <input type="text" id="setupName" placeholder="z. B. Freitagsrunde" autocomplete="off">
+      </label>
+
+      <h2 class="section-title">Mitspieler <small id="playerCount"></small></h2>
+      <div id="setupPlayers" class="players"></div>
+      <button class="btn ghost" id="btnAddPlayer">+ Spieler hinzufügen</button>
+      <p class="hint">Reihenfolge = Sitzreihenfolge. Der Geber wechselt jede Runde im Uhrzeigersinn.</p>
+
+      <h2 class="section-title">Rundenverlauf</h2>
+      <div class="chips" id="setupMode" role="radiogroup" aria-label="Rundenverlauf"></div>
+
+      <div class="grid2">
+        <label class="field">
+          <span>Kartendeck</span>
+          <select id="setupDeck">
+            <option value="60">Wizard (60 Karten)</option>
+            <option value="52">Franz. Blatt (52)</option>
+            <option value="32">Skatblatt (32)</option>
+            <option value="36">Blatt mit 36</option>
+            <option value="0">eigene Rundenzahl</option>
+          </select>
+        </label>
+        <label class="field">
+          <span id="lblMaxCards">Max. Karten / Runde</span>
+          <input type="number" id="setupMaxCards" min="1" max="30" inputmode="numeric">
+        </label>
+      </div>
+
+      <div class="grid2" id="fixedWrap" hidden>
+        <label class="field">
+          <span>Anzahl Runden</span>
+          <input type="number" id="setupRounds" min="1" max="60" value="10" inputmode="numeric">
+        </label>
+        <label class="field">
+          <span>Karten je Runde</span>
+          <input type="number" id="setupFixedCards" min="1" max="30" value="5" inputmode="numeric">
+        </label>
+      </div>
+
+      <p class="hint" id="setupPreview"></p>
+
+      <h2 class="section-title">Wertung</h2>
+      <div class="chips" id="setupPreset" role="radiogroup" aria-label="Wertung"></div>
+      <p class="hint" id="presetDesc"></p>
+
+      <details id="customWrap" class="details">
+        <summary>Punkte-Formel anpassen</summary>
+        <div class="grid2">
+          <label class="field">
+            <span>Bonus bei richtiger Ansage</span>
+            <input type="number" id="cfgBonus" inputmode="numeric">
+          </label>
+          <label class="field">
+            <span>Punkte je Stich (bei richtig)</span>
+            <input type="number" id="cfgPerTrick" inputmode="numeric">
+          </label>
+          <label class="field">
+            <span>Punkte je Differenz (bei falsch)</span>
+            <input type="number" id="cfgPerDiff" inputmode="numeric">
+          </label>
+          <label class="field">
+            <span>Grundwert bei falsch</span>
+            <input type="number" id="cfgWrongBase" inputmode="numeric">
+          </label>
+        </div>
+        <label class="check">
+          <input type="checkbox" id="cfgTricksWhenWrong">
+          <span>Stiche zählen auch bei falscher Ansage</span>
+        </label>
+        <label class="check">
+          <input type="checkbox" id="cfgLowestWins">
+          <span>Wenigste Punkte gewinnen</span>
+        </label>
+        <p class="hint" id="formulaPreview"></p>
+      </details>
+
+      <h2 class="section-title">Regeln</h2>
+      <label class="check">
+        <input type="checkbox" id="cfgStrictDealer">
+        <span>Ansagen dürfen nicht aufgehen — der Geber sagt zuletzt an und darf die Summe nicht auf die Kartenzahl bringen</span>
+      </label>
+    </div>
+
+    <div class="bottombar">
+      <button class="btn ghost" id="btnCancelSetup">Abbrechen</button>
+      <button class="btn primary" id="btnStartGame">Spiel starten</button>
+    </div>
+  </section>
+
+  <!-- ============ GAME ============ -->
+  <section class="screen" id="screen-game" hidden>
+    <div class="roundhead">
+      <div class="roundhead-main">
+        <strong id="roundLabel">Runde 1</strong>
+        <span id="roundCards" class="pill"></span>
+      </div>
+      <div class="roundhead-sub" id="roundDealer"></div>
+      <div class="phasetabs">
+        <button class="phasetab" data-phase="bid" id="tabBid">Ansage</button>
+        <button class="phasetab" data-phase="trick" id="tabTrick">Stiche</button>
+      </div>
+    </div>
+
+    <div class="pad entrylist" id="entryList"></div>
+
+    <div class="bottombar">
+      <div class="sumbox" id="sumBox"></div>
+      <button class="btn primary" id="btnRoundNext">Weiter</button>
+    </div>
+  </section>
+
+  <!-- ============ TABLE ============ -->
+  <section class="screen" id="screen-table" hidden>
+    <div class="tablewrap">
+      <table class="score" id="scoreTable"></table>
+    </div>
+    <div class="pad">
+      <h2 class="section-title">Trefferquote</h2>
+      <div id="statsList" class="cardlist"></div>
+    </div>
+    <div class="bottombar">
+      <button class="btn ghost" id="btnDeleteGame">Spiel löschen</button>
+      <button class="btn primary" id="btnBackToGame">Weiter spielen</button>
+    </div>
+  </section>
+
+</main>
+
+<nav class="tabbar" id="tabbar" hidden>
+  <button class="tabbtn" data-view="game">Runde</button>
+  <button class="tabbtn" data-view="table">Tabelle</button>
+  <button class="tabbtn" data-view="home">Spiele</button>
+</nav>
+
+<!-- Round editor sheet -->
+<div class="sheet" id="sheet" hidden>
+  <div class="sheet-backdrop" data-close></div>
+  <div class="sheet-panel" role="dialog" aria-modal="true" aria-labelledby="sheetTitle">
+    <div class="sheet-head">
+      <strong id="sheetTitle">Runde bearbeiten</strong>
+      <button class="iconbtn" data-close aria-label="Schließen">×</button>
+    </div>
+    <div class="sheet-body" id="sheetBody"></div>
+    <div class="sheet-foot">
+      <button class="btn ghost" data-close>Abbrechen</button>
+      <button class="btn primary" id="btnSheetSave">Speichern</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast" hidden></div>
+
+<script src="app.js"></script>
+</body>
+</html>

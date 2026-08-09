@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" fill="#0f172a"/>
+  <g transform="translate(256 256) scale(0.62) translate(-256 -256)">
+    <g transform="rotate(-14 256 256)">
+      <rect x="118" y="130" width="180" height="252" rx="20" fill="#e8ecf4" stroke="#94a3b8" stroke-width="6"/>
+    </g>
+    <g transform="rotate(6 256 256)">
+      <rect x="214" y="126" width="180" height="252" rx="20" fill="#ffffff" stroke="#64748b" stroke-width="6"/>
+      <path d="M304 184l38 52-38 52-38-52z" fill="#dc2626"/>
+      <text x="304" y="334" font-family="-apple-system,Segoe UI,Roboto,sans-serif" font-size="72"
+            font-weight="700" fill="#2563eb" text-anchor="middle">3</text>
+    </g>
+  </g>
+</svg>

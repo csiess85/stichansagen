@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="96" fill="#0f172a"/>
+  <g transform="rotate(-14 256 300)">
+    <rect x="118" y="132" width="180" height="252" rx="20" fill="#e8ecf4" stroke="#94a3b8" stroke-width="6"/>
+  </g>
+  <g transform="rotate(6 256 300)">
+    <rect x="214" y="128" width="180" height="252" rx="20" fill="#ffffff" stroke="#64748b" stroke-width="6"/>
+    <path d="M304 186l38 52-38 52-38-52z" fill="#dc2626"/>
+    <text x="304" y="336" font-family="-apple-system,Segoe UI,Roboto,sans-serif" font-size="72"
+          font-weight="700" fill="#2563eb" text-anchor="middle">3</text>
+  </g>
+</svg>
