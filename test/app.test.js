@@ -175,6 +175,74 @@ const plusBonus = { bonus: 10, perTrick: 1, perDiff: 0, wrongBase: 0, tricksWhen
 ok(rs(2, 4, plusBonus) === 4, 'Stiche+Bonus bei falsch = 4');
 ok(rs(4, 4, plusBonus) === 14, 'Stiche+Bonus bei richtig = 14');
 
+console.log('\n== Null-Ansage-Bonus ab Runde 7 (Preset Klassisch) ==');
+const kl = { bonus: 10, perTrick: 1, perDiff: -1, wrongBase: 0,
+             tricksWhenWrong: false, lowestWins: false, zeroFromRound: 7, zeroBonus: 20 };
+ok(rs(0, 0, kl, 6) === 10, 'Runde 6: 0 angesagt und getroffen = 10 (normale Formel)');
+ok(rs(0, 0, kl, 7) === 20, 'Runde 7: 0 angesagt und getroffen = 20');
+ok(rs(0, 0, kl, 12) === 20, 'Runde 12: weiterhin 20');
+ok(rs(0, 2, kl, 9) === -2, 'Runde 9: 0 angesagt, 2 gemacht = -2 (Bonus greift nicht)');
+ok(rs(2, 2, kl, 9) === 12, 'Runde 9: 2 angesagt und getroffen = 12 (unverändert)');
+ok(rs(1, 1, kl, 9) === 11, 'Runde 9: 1 angesagt und getroffen = 11 (unverändert)');
+const wizNoZero = { ...wiz, zeroFromRound: 0, zeroBonus: 0 };
+ok(rs(0, 0, wizNoZero, 9) === 20, 'Wizard ohne Sonderregel unverändert 20');
+// Altbestand ohne die neuen Felder darf nicht umkippen
+ok(rs(0, 0, wiz, 9) === 20, 'alter Spielstand ohne zeroFromRound bleibt bei 20');
+
+console.log('\n== Sonderregel im echten Spielverlauf ==');
+const clean = new JSDOM(html, { url: 'https://example.com/y/', runScripts: 'outside-only', pretendToBeVisual: true });
+clean.window.scrollTo = () => {};
+clean.window.eval(fs.readFileSync(path.join(DIR, 'app.js'), 'utf8'));
+const cd = clean.window.document;
+const cq = sel => cd.querySelector(sel);
+const cqa = sel => Array.from(cd.querySelectorAll(sel));
+const cclick = n => n.dispatchEvent(new clean.window.MouseEvent('click', { bubbles: true }));
+const cset = (n, v) => { n.value = v; n.dispatchEvent(new clean.window.Event('input', { bubbles: true })); };
+
+cclick(cq('#btnNewGame'));
+['Eva', 'Finn'].forEach((n, i) => cset(cqa('#setupPlayers input')[i], n));
+cclick(cqa('#setupPlayers .del')[2]);          // dritten Spieler entfernen -> 2 Spieler
+cclick(cqa('#setupMode .chip').find(c => c.textContent === 'Feste Runden'));
+cset(cq('#setupRounds'), '7');
+cset(cq('#setupFixedCards'), '1');
+cclick(cqa('#setupPreset .chip').find(c => c.textContent === 'Klassisch'));
+ok(cq('#presetDesc').textContent.includes('Ab Runde 7'), 'Preset-Beschreibung nennt die Regel');
+ok(cq('#cfgZeroFromRound').value === '7' && cq('#cfgZeroBonus').value === '20',
+   'Formularfelder vorbelegt: ab Runde ' + cq('#cfgZeroFromRound').value + ' / ' + cq('#cfgZeroBonus').value + ' Punkte');
+cclick(cq('#btnStartGame'));
+
+// 7 Runden à 1 Karte: Eva sagt immer 0 und macht 0, Finn sagt 1 und macht 1
+for (let r = 1; r <= 7; r++) {
+  const first = cqa('#entryList .entry');
+  first.forEach(entry => {
+    const name = entry.querySelector('.entry-name').textContent;
+    const want = name === 'Eva' ? 0 : 1;
+    cclick(Array.from(entry.querySelectorAll('.num')).find(b => b.textContent === String(want)));
+  });
+  cclick(cq('#btnRoundNext'));            // zu den Stichen
+  cqa('#entryList .entry').forEach(entry => {
+    const name = entry.querySelector('.entry-name').textContent;
+    const want = name === 'Eva' ? 0 : 1;
+    cclick(Array.from(entry.querySelectorAll('.num')).find(b => b.textContent === String(want)));
+  });
+  cclick(cq('#btnRoundNext'));            // Runde abschließen
+}
+cclick(cqa('.tabbtn').find(b => b.dataset.view === 'table'));
+const heads2 = Array.from(cq('#scoreTable').querySelectorAll('thead th')).map(t => t.textContent);
+const tot = Array.from(cq('#scoreTable').querySelectorAll('tfoot td')).slice(1)
+  .map(td => parseInt(td.firstChild.nodeValue, 10));
+const evaIdx = heads2.indexOf('Eva') - 1;
+// Eva: Runden 1-6 je 10, Runde 7 = 20 -> 80 | Finn: 7 x (10+1) = 77
+ok(tot[evaIdx] === 80, 'Eva 6x10 + 20 in Runde 7 = 80 → ' + tot[evaIdx]);
+ok(tot[1 - evaIdx] === 77, 'Finn 7x11 = 77 (unberührt) → ' + tot[1 - evaIdx]);
+const rows = Array.from(cq('#scoreTable').querySelectorAll('tbody tr'));
+const cellR7 = rows[6].querySelectorAll('td')[evaIdx + 1];
+ok(cellR7.querySelector('.cell-sub').textContent.includes('+20'), 'Runde 7 zeigt +20: '
+   + cellR7.querySelector('.cell-sub').textContent);
+const cellR6 = rows[5].querySelectorAll('td')[evaIdx + 1];
+ok(cellR6.querySelector('.cell-sub').textContent.includes('+10'), 'Runde 6 zeigt +10: '
+   + cellR6.querySelector('.cell-sub').textContent);
+
 console.log('\n== Sichtbarkeit: [hidden] gegen eigene display-Regeln ==');
 // styles.css inline einspielen, damit getComputedStyle die Kaskade sieht.
 const css = fs.readFileSync(path.join(DIR, 'styles.css'), 'utf8');

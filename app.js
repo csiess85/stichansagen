@@ -49,31 +49,37 @@ const PRESETS = {
     label: 'Wizard',
     desc: 'Richtig: 20 Punkte + 10 je Stich. Falsch: −10 je Stich Differenz.',
     scoring: { bonus: 20, perTrick: 10, perDiff: -10, wrongBase: 0,
-               tricksWhenWrong: false, lowestWins: false }
+               tricksWhenWrong: false, lowestWins: false,
+               zeroFromRound: 0, zeroBonus: 0 }
   },
   klassisch: {
     label: 'Klassisch',
-    desc: 'Richtig: 10 Punkte + 1 je Stich. Falsch: −1 je Stich Differenz.',
+    desc: 'Richtig: 10 Punkte + 1 je Stich. Falsch: −1 je Stich Differenz. ' +
+          'Ab Runde 7 zählt eine getroffene Ansage von 0 Stichen fest 20 Punkte.',
     scoring: { bonus: 10, perTrick: 1, perDiff: -1, wrongBase: 0,
-               tricksWhenWrong: false, lowestWins: false }
+               tricksWhenWrong: false, lowestWins: false,
+               zeroFromRound: 7, zeroBonus: 20 }
   },
   stiche: {
     label: 'Stiche + Bonus',
     desc: 'Stiche zählen immer. Bei richtiger Ansage zusätzlich 10 Punkte Bonus.',
     scoring: { bonus: 10, perTrick: 1, perDiff: 0, wrongBase: 0,
-               tricksWhenWrong: true, lowestWins: false }
+               tricksWhenWrong: true, lowestWins: false,
+               zeroFromRound: 0, zeroBonus: 0 }
   },
   differenz: {
     label: 'Nur Differenz',
     desc: 'Je Stich Differenz 1 Minuspunkt. Wer am Ende die wenigsten Punkte hat, gewinnt.',
     scoring: { bonus: 0, perTrick: 0, perDiff: 1, wrongBase: 0,
-               tricksWhenWrong: false, lowestWins: true }
+               tricksWhenWrong: false, lowestWins: true,
+               zeroFromRound: 0, zeroBonus: 0 }
   },
   custom: {
     label: 'Eigene',
     desc: 'Formel unten frei einstellen.',
     scoring: { bonus: 20, perTrick: 10, perDiff: -10, wrongBase: 0,
-               tricksWhenWrong: false, lowestWins: false }
+               tricksWhenWrong: false, lowestWins: false,
+               zeroFromRound: 0, zeroBonus: 0 }
   }
 };
 
@@ -130,9 +136,15 @@ function buildCardCounts(cfg) {
 }
 
 /* ---------- Punkte ---------- */
-function roundScore(bid, tricks, sc) {
+function roundScore(bid, tricks, sc, roundNo) {
   if (bid === null || tricks === null) return 0;
-  if (bid === tricks) return sc.bonus + sc.perTrick * tricks;
+  if (bid === tricks) {
+    // Sonderregel: ab einer bestimmten Runde zählt eine getroffene Null-Ansage
+    // einen festen Wert statt der normalen Formel. Bei älteren Spielständen
+    // fehlen die Felder – dann greift die Regel nicht.
+    if (bid === 0 && sc.zeroFromRound > 0 && roundNo >= sc.zeroFromRound) return sc.zeroBonus;
+    return sc.bonus + sc.perTrick * tricks;
+  }
   const diff = Math.abs(bid - tricks);
   return sc.wrongBase + sc.perDiff * diff + (sc.tricksWhenWrong ? sc.perTrick * tricks : 0);
 }
@@ -142,17 +154,17 @@ function computeTotals(game) {
   const totals = {};
   game.players.forEach(p => { totals[p.id] = 0; });
   const perRound = [];
-  for (const r of game.rounds) {
+  game.rounds.forEach((r, i) => {
     const row = {};
     if (r.done) {
       for (const p of game.players) {
-        const pts = roundScore(r.bids[p.id] ?? null, r.tricks[p.id] ?? null, game.scoring);
+        const pts = roundScore(r.bids[p.id] ?? null, r.tricks[p.id] ?? null, game.scoring, i + 1);
         row[p.id] = pts;
         totals[p.id] += pts;
       }
     }
     perRound.push(row);
-  }
+  });
   return { totals, perRound };
 }
 
@@ -357,6 +369,8 @@ function renderSetup() {
   $('#cfgPerTrick').value = d.scoring.perTrick;
   $('#cfgPerDiff').value = d.scoring.perDiff;
   $('#cfgWrongBase').value = d.scoring.wrongBase;
+  $('#cfgZeroFromRound').value = d.scoring.zeroFromRound ?? 0;
+  $('#cfgZeroBonus').value = d.scoring.zeroBonus ?? 0;
   $('#cfgTricksWhenWrong').checked = d.scoring.tricksWhenWrong;
   $('#cfgLowestWins').checked = d.scoring.lowestWins;
   $('#formulaPreview').textContent = formulaText(d.scoring);
@@ -368,7 +382,9 @@ function formulaText(sc) {
   const a = `Richtig: ${sc.bonus} ${sc.perTrick >= 0 ? '+' : '−'} ${Math.abs(sc.perTrick)} × Stiche`;
   const b = `Falsch: ${sc.wrongBase} ${sc.perDiff >= 0 ? '+' : '−'} ${Math.abs(sc.perDiff)} × |Ansage − Stiche|` +
             (sc.tricksWhenWrong ? ` ${sc.perTrick >= 0 ? '+' : '−'} ${Math.abs(sc.perTrick)} × Stiche` : '');
-  return a + '  ·  ' + b + (sc.lowestWins ? '  ·  wenigste Punkte gewinnen' : '');
+  const c = sc.zeroFromRound > 0
+    ? `  ·  ab Runde ${sc.zeroFromRound}: getroffene Ansage 0 = ${sc.zeroBonus} Punkte` : '';
+  return a + '  ·  ' + b + c + (sc.lowestWins ? '  ·  wenigste Punkte gewinnen' : '');
 }
 
 function cfgFromDraft(d) {
@@ -886,7 +902,8 @@ function bindEvents() {
 
   const scoreInputs = {
     '#cfgBonus': 'bonus', '#cfgPerTrick': 'perTrick',
-    '#cfgPerDiff': 'perDiff', '#cfgWrongBase': 'wrongBase'
+    '#cfgPerDiff': 'perDiff', '#cfgWrongBase': 'wrongBase',
+    '#cfgZeroFromRound': 'zeroFromRound', '#cfgZeroBonus': 'zeroBonus'
   };
   for (const [sel, key] of Object.entries(scoreInputs)) {
     $(sel).oninput = e => {
