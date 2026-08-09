@@ -194,19 +194,20 @@ const plusBonus = { bonus: 10, perTrick: 1, perDiff: 0, wrongBase: 0, tricksWhen
 ok(rs(2, 4, plusBonus) === 4, 'Stiche+Bonus bei falsch = 4');
 ok(rs(4, 4, plusBonus) === 14, 'Stiche+Bonus bei richtig = 14');
 
-console.log('\n== Null-Ansage-Bonus ab Runde 7 (Preset Klassisch) ==');
+console.log('\n== Null-Ansage-Bonus ab 7 Karten (Preset Klassisch) ==');
 const kl = { bonus: 10, perTrick: 1, perDiff: -1, wrongBase: 0,
-             tricksWhenWrong: false, lowestWins: false, zeroFromRound: 7, zeroBonus: 20 };
-ok(rs(0, 0, kl, 6) === 10, 'Runde 6: 0 angesagt und getroffen = 10 (normale Formel)');
-ok(rs(0, 0, kl, 7) === 20, 'Runde 7: 0 angesagt und getroffen = 20');
-ok(rs(0, 0, kl, 12) === 20, 'Runde 12: weiterhin 20');
-ok(rs(0, 2, kl, 9) === -2, 'Runde 9: 0 angesagt, 2 gemacht = -2 (Bonus greift nicht)');
-ok(rs(2, 2, kl, 9) === 12, 'Runde 9: 2 angesagt und getroffen = 12 (unverändert)');
-ok(rs(1, 1, kl, 9) === 11, 'Runde 9: 1 angesagt und getroffen = 11 (unverändert)');
-const wizNoZero = { ...wiz, zeroFromRound: 0, zeroBonus: 0 };
+             tricksWhenWrong: false, lowestWins: false, zeroFromCards: 7, zeroBonus: 20 };
+ok(rs(0, 0, kl, 6) === 10, '6 Karten: 0 angesagt und getroffen = 10 (normale Formel)');
+ok(rs(0, 0, kl, 7) === 20, '7 Karten: 0 angesagt und getroffen = 20');
+ok(rs(0, 0, kl, 12) === 20, '12 Karten: weiterhin 20');
+ok(rs(0, 0, kl, 1) === 10, '1 Karte: normale 10 Punkte');
+ok(rs(0, 2, kl, 9) === -2, '9 Karten: 0 angesagt, 2 gemacht = -2 (Bonus greift nicht)');
+ok(rs(2, 2, kl, 9) === 12, '9 Karten: 2 angesagt und getroffen = 12 (unverändert)');
+ok(rs(1, 1, kl, 9) === 11, '9 Karten: 1 angesagt und getroffen = 11 (unverändert)');
+const wizNoZero = { ...wiz, zeroFromCards: 0, zeroBonus: 0 };
 ok(rs(0, 0, wizNoZero, 9) === 20, 'Wizard ohne Sonderregel unverändert 20');
 // Altbestand ohne die neuen Felder darf nicht umkippen
-ok(rs(0, 0, wiz, 9) === 20, 'alter Spielstand ohne zeroFromRound bleibt bei 20');
+ok(rs(0, 0, wiz, 9) === 20, 'alter Spielstand ohne zeroFromCards bleibt bei 20');
 
 console.log('\n== Sonderregel im echten Spielverlauf ==');
 const clean = new JSDOM(html, { url: 'https://example.com/y/', runScripts: 'outside-only', pretendToBeVisual: true });
@@ -221,46 +222,62 @@ const cset = (n, v) => { n.value = v; n.dispatchEvent(new clean.window.Event('in
 cclick(cq('#btnNewGame'));
 ['Eva', 'Finn'].forEach((n, i) => cset(cqa('#setupPlayers input')[i], n));
 cclick(cqa('#setupPlayers .del')[2]);          // dritten Spieler entfernen -> 2 Spieler
-cclick(cqa('#setupMode .chip').find(c => c.textContent === 'Feste Runden'));
-cset(cq('#setupRounds'), '7');
-cset(cq('#setupFixedCards'), '1');
+cclick(cqa('#setupMode .chip').find(c => c.textContent === 'Aufsteigend'));
+cq('#cfgExtraSingles').checked = false;
+cq('#cfgExtraSingles').dispatchEvent(new clean.window.Event('change', { bubbles: true }));
+cset(cq('#setupMaxCards'), '8');           // Runden mit 1..8 Karten
 cclick(cqa('#setupPreset .chip').find(c => c.textContent === 'Klassisch'));
-ok(cq('#presetDesc').textContent.includes('Ab Runde 7'), 'Preset-Beschreibung nennt die Regel');
-ok(cq('#cfgZeroFromRound').value === '7' && cq('#cfgZeroBonus').value === '20',
-   'Formularfelder vorbelegt: ab Runde ' + cq('#cfgZeroFromRound').value + ' / ' + cq('#cfgZeroBonus').value + ' Punkte');
+ok(cq('#presetDesc').textContent.includes('Ab 7 Karten'), 'Preset-Beschreibung nennt die Regel');
+ok(cq('#cfgZeroFromCards').value === '7' && cq('#cfgZeroBonus').value === '20',
+   'Formularfelder vorbelegt: ab ' + cq('#cfgZeroFromCards').value + ' Karten / ' + cq('#cfgZeroBonus').value + ' Punkte');
 cclick(cq('#btnStartGame'));
 
-// 7 Runden à 1 Karte: Eva sagt immer 0 und macht 0, Finn sagt 1 und macht 1
-for (let r = 1; r <= 7; r++) {
-  const first = cqa('#entryList .entry');
-  first.forEach(entry => {
-    const name = entry.querySelector('.entry-name').textContent;
-    const want = name === 'Eva' ? 0 : 1;
-    cclick(Array.from(entry.querySelectorAll('.num')).find(b => b.textContent === String(want)));
-  });
-  cclick(cq('#btnRoundNext'));            // zu den Stichen
-  cqa('#entryList .entry').forEach(entry => {
-    const name = entry.querySelector('.entry-name').textContent;
-    const want = name === 'Eva' ? 0 : 1;
-    cclick(Array.from(entry.querySelectorAll('.num')).find(b => b.textContent === String(want)));
-  });
-  cclick(cq('#btnRoundNext'));            // Runde abschließen
+// 8 Runden mit 1..8 Karten: Eva sagt immer 0 und macht 0, Finn nimmt alle Stiche
+for (let cards = 1; cards <= 8; cards++) {
+  for (const phase of [0, 1]) {
+    cqa('#entryList .entry').forEach(entry => {
+      const name = entry.querySelector('.entry-name').textContent;
+      const want = name === 'Eva' ? 0 : cards;
+      cclick(Array.from(entry.querySelectorAll('.num')).find(b => b.textContent === String(want)));
+    });
+    cclick(cq('#btnRoundNext'));          // erst zu den Stichen, dann abschließen
+  }
 }
 cclick(cqa('.tabbtn').find(b => b.dataset.view === 'table'));
 const heads2 = Array.from(cq('#scoreTable').querySelectorAll('thead th')).map(t => t.textContent);
 const tot = Array.from(cq('#scoreTable').querySelectorAll('tfoot td')).slice(1)
   .map(td => parseInt(td.firstChild.nodeValue, 10));
 const evaIdx = heads2.indexOf('Eva') - 1;
-// Eva: Runden 1-6 je 10, Runde 7 = 20 -> 80 | Finn: 7 x (10+1) = 77
-ok(tot[evaIdx] === 80, 'Eva 6x10 + 20 in Runde 7 = 80 → ' + tot[evaIdx]);
-ok(tot[1 - evaIdx] === 77, 'Finn 7x11 = 77 (unberührt) → ' + tot[1 - evaIdx]);
+// Eva: 1-6 Karten je 10 = 60, 7 und 8 Karten je 20 = 40 -> 100
+// Finn: 10 + Kartenzahl je Runde = 8x10 + (1+..+8) = 80 + 36 = 116
+ok(tot[evaIdx] === 100, 'Eva 6x10 + 2x20 = 100 → ' + tot[evaIdx]);
+ok(tot[1 - evaIdx] === 116, 'Finn 8x10 + 36 Stiche = 116 (unberührt) → ' + tot[1 - evaIdx]);
 const rows = Array.from(cq('#scoreTable').querySelectorAll('tbody tr'));
-const cellR7 = rows[6].querySelectorAll('td')[evaIdx + 1];
-ok(cellR7.querySelector('.cell-sub').textContent.includes('+20'), 'Runde 7 zeigt +20: '
-   + cellR7.querySelector('.cell-sub').textContent);
-const cellR6 = rows[5].querySelectorAll('td')[evaIdx + 1];
-ok(cellR6.querySelector('.cell-sub').textContent.includes('+10'), 'Runde 6 zeigt +10: '
-   + cellR6.querySelector('.cell-sub').textContent);
+const sub = i => rows[i].querySelectorAll('td')[evaIdx + 1].querySelector('.cell-sub').textContent;
+ok(sub(5).includes('+10'), 'Runde mit 6 Karten zeigt +10: ' + sub(5));
+ok(sub(6).includes('+20'), 'Runde mit 7 Karten zeigt +20: ' + sub(6));
+ok(sub(7).includes('+20'), 'Runde mit 8 Karten zeigt +20: ' + sub(7));
+
+console.log('\n== Migration alter Spielstände ==');
+const alt = JSON.parse(clean.window.localStorage.getItem('stichansagen.v1'));
+alt.games[0].scoring = { bonus: 10, perTrick: 1, perDiff: -1, wrongBase: 0,
+                         tricksWhenWrong: false, lowestWins: false,
+                         zeroFromRound: 7, zeroBonus: 20 };
+const dom6 = new JSDOM(html, { url: 'https://example.com/m/', runScripts: 'outside-only', pretendToBeVisual: true });
+dom6.window.scrollTo = () => {};
+dom6.window.localStorage.setItem('stichansagen.v1', JSON.stringify(alt));
+dom6.window.eval(fs.readFileSync(path.join(DIR, 'app.js'), 'utf8'));
+const mig = JSON.parse(dom6.window.localStorage.getItem('stichansagen.v1'));
+const migScoring = JSON.parse(JSON.stringify(alt.games[0].scoring));
+dom6.window.document.querySelector('#listFinished .gcard, #listRunning .gcard')
+  .dispatchEvent(new dom6.window.MouseEvent('click', { bubbles: true }));
+const mg = dom6.window.document;
+ok(migScoring.zeroFromRound === 7, 'Ausgangsstand nutzte noch zeroFromRound');
+const loaded = mg.querySelector('#scoreTable') ? true : false;
+ok(loaded, 'altes Spiel lässt sich öffnen');
+const totM = Array.from(mg.querySelectorAll('#scoreTable tfoot td')).slice(1)
+  .map(td => parseInt(td.firstChild.nodeValue, 10));
+ok(totM.includes(100), 'migriert: Wert wird als Kartenzahl gelesen, Eva wieder 100 → ' + totM.join(','));
 
 console.log('\n== Einer-Runden im Setup ==');
 const dom5 = new JSDOM(html, { url: 'https://example.com/z/', runScripts: 'outside-only', pretendToBeVisual: true });

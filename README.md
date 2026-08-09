@@ -21,14 +21,16 @@ Alle Spielstände liegen ausschließlich im `localStorage` des jeweiligen Browse
   | Preset | Regel |
   |---|---|
   | Wizard | richtig: 20 + 10 je Stich · falsch: −10 je Stich Differenz |
-  | Klassisch | richtig: 10 + 1 je Stich · falsch: −1 je Stich Differenz · **ab Runde 7 zählt eine getroffene Ansage von 0 Stichen fest 20 Punkte** |
+  | Klassisch | richtig: 10 + 1 je Stich · falsch: −1 je Stich Differenz · **ab 7 Karten auf der Hand zählt eine getroffene Ansage von 0 Stichen 20 statt 10 Punkte** |
   | Stiche + Bonus | Stiche zählen immer, bei richtiger Ansage +10 |
   | Nur Differenz | 1 Minuspunkt je Stich Differenz, **wenigste Punkte gewinnen** |
-  | Eigene | Bonus, Punkte je Stich, Punkte je Differenz, Grundwert bei falsch, Null-Ansage-Bonus ab Runde X, Stiche auch bei falscher Ansage, wenigste Punkte gewinnen |
+  | Eigene | Bonus, Punkte je Stich, Punkte je Differenz, Grundwert bei falsch, Null-Ansage-Bonus ab X Karten, Stiche auch bei falscher Ansage, wenigste Punkte gewinnen |
 
-  Der **Null-Ansage-Bonus** ist in jedem Preset frei einstellbar: Wer ab der eingestellten Runde
-  0 Stiche ansagt und auch keinen macht, bekommt genau diese Punktzahl statt der normalen Formel.
-  `0` schaltet die Regel ab. Maßgeblich ist die Rundennummer, nicht die Kartenzahl.
+  Der **Null-Ansage-Bonus** ist in jedem Preset frei einstellbar: Sobald in einer Runde mindestens
+  so viele Karten ausgeteilt werden, bekommt jeder, der 0 Stiche ansagt und auch keinen macht,
+  genau diese Punktzahl statt der normalen Formel. `0` schaltet die Regel ab. Maßgeblich ist die
+  **Kartenzahl der Runde**, nicht die Rundennummer – bei „Auf und ab" greift die Regel also im
+  aufsteigenden wie im absteigenden Teil.
 
 - **Tabelle** mit laufender Summe je Runde, Ansage/Stiche und Rundenpunkten in der Zelle, fixierter Kopf- und Rundenspalte.
 - **Runden nachträglich korrigieren**: Zeile in der Tabelle antippen, Werte ändern, speichern.

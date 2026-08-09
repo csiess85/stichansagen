@@ -50,36 +50,36 @@ const PRESETS = {
     desc: 'Richtig: 20 Punkte + 10 je Stich. Falsch: −10 je Stich Differenz.',
     scoring: { bonus: 20, perTrick: 10, perDiff: -10, wrongBase: 0,
                tricksWhenWrong: false, lowestWins: false,
-               zeroFromRound: 0, zeroBonus: 0 }
+               zeroFromCards: 0, zeroBonus: 0 }
   },
   klassisch: {
     label: 'Klassisch',
     desc: 'Richtig: 10 Punkte + 1 je Stich. Falsch: −1 je Stich Differenz. ' +
-          'Ab Runde 7 zählt eine getroffene Ansage von 0 Stichen fest 20 Punkte.',
+          'Ab 7 Karten auf der Hand zählt eine getroffene Ansage von 0 Stichen 20 statt 10 Punkte.',
     scoring: { bonus: 10, perTrick: 1, perDiff: -1, wrongBase: 0,
                tricksWhenWrong: false, lowestWins: false,
-               zeroFromRound: 7, zeroBonus: 20 }
+               zeroFromCards: 7, zeroBonus: 20 }
   },
   stiche: {
     label: 'Stiche + Bonus',
     desc: 'Stiche zählen immer. Bei richtiger Ansage zusätzlich 10 Punkte Bonus.',
     scoring: { bonus: 10, perTrick: 1, perDiff: 0, wrongBase: 0,
                tricksWhenWrong: true, lowestWins: false,
-               zeroFromRound: 0, zeroBonus: 0 }
+               zeroFromCards: 0, zeroBonus: 0 }
   },
   differenz: {
     label: 'Nur Differenz',
     desc: 'Je Stich Differenz 1 Minuspunkt. Wer am Ende die wenigsten Punkte hat, gewinnt.',
     scoring: { bonus: 0, perTrick: 0, perDiff: 1, wrongBase: 0,
                tricksWhenWrong: false, lowestWins: true,
-               zeroFromRound: 0, zeroBonus: 0 }
+               zeroFromCards: 0, zeroBonus: 0 }
   },
   custom: {
     label: 'Eigene',
     desc: 'Formel unten frei einstellen.',
     scoring: { bonus: 20, perTrick: 10, perDiff: -10, wrongBase: 0,
                tricksWhenWrong: false, lowestWins: false,
-               zeroFromRound: 0, zeroBonus: 0 }
+               zeroFromCards: 0, zeroBonus: 0 }
   }
 };
 
@@ -98,6 +98,15 @@ function loadStore() {
     if (!raw) return { version: 1, games: [] };
     const data = JSON.parse(raw);
     if (!data || !Array.isArray(data.games)) return { version: 1, games: [] };
+    // Vorversion kannte die Schwelle als Rundennummer (zeroFromRound); gemeint
+    // war immer die Kartenzahl der Runde. Wert einmalig übernehmen.
+    for (const g of data.games) {
+      const sc = g && g.scoring;
+      if (sc && sc.zeroFromCards === undefined && sc.zeroFromRound !== undefined) {
+        sc.zeroFromCards = sc.zeroFromRound;
+        delete sc.zeroFromRound;
+      }
+    }
     return data;
   } catch (e) {
     console.warn('Speicher konnte nicht gelesen werden', e);
@@ -143,13 +152,13 @@ function buildCardCounts(cfg) {
 }
 
 /* ---------- Punkte ---------- */
-function roundScore(bid, tricks, sc, roundNo) {
+function roundScore(bid, tricks, sc, cards) {
   if (bid === null || tricks === null) return 0;
   if (bid === tricks) {
-    // Sonderregel: ab einer bestimmten Runde zählt eine getroffene Null-Ansage
-    // einen festen Wert statt der normalen Formel. Bei älteren Spielständen
-    // fehlen die Felder – dann greift die Regel nicht.
-    if (bid === 0 && sc.zeroFromRound > 0 && roundNo >= sc.zeroFromRound) return sc.zeroBonus;
+    // Sonderregel: sobald jeder so viele Karten auf der Hand hat, zählt eine
+    // getroffene Null-Ansage einen festen Wert statt der normalen Formel.
+    // Maßgeblich ist die Kartenzahl der Runde, nicht die Rundennummer.
+    if (bid === 0 && sc.zeroFromCards > 0 && cards >= sc.zeroFromCards) return sc.zeroBonus;
     return sc.bonus + sc.perTrick * tricks;
   }
   const diff = Math.abs(bid - tricks);
@@ -161,11 +170,11 @@ function computeTotals(game) {
   const totals = {};
   game.players.forEach(p => { totals[p.id] = 0; });
   const perRound = [];
-  game.rounds.forEach((r, i) => {
+  game.rounds.forEach(r => {
     const row = {};
     if (r.done) {
       for (const p of game.players) {
-        const pts = roundScore(r.bids[p.id] ?? null, r.tricks[p.id] ?? null, game.scoring, i + 1);
+        const pts = roundScore(r.bids[p.id] ?? null, r.tricks[p.id] ?? null, game.scoring, r.cards);
         row[p.id] = pts;
         totals[p.id] += pts;
       }
@@ -373,7 +382,7 @@ function renderSetup() {
   $('#cfgPerTrick').value = d.scoring.perTrick;
   $('#cfgPerDiff').value = d.scoring.perDiff;
   $('#cfgWrongBase').value = d.scoring.wrongBase;
-  $('#cfgZeroFromRound').value = d.scoring.zeroFromRound ?? 0;
+  $('#cfgZeroFromCards').value = d.scoring.zeroFromCards ?? 0;
   $('#cfgZeroBonus').value = d.scoring.zeroBonus ?? 0;
   $('#cfgTricksWhenWrong').checked = d.scoring.tricksWhenWrong;
   $('#cfgLowestWins').checked = d.scoring.lowestWins;
@@ -386,8 +395,8 @@ function formulaText(sc) {
   const a = `Richtig: ${sc.bonus} ${sc.perTrick >= 0 ? '+' : '−'} ${Math.abs(sc.perTrick)} × Stiche`;
   const b = `Falsch: ${sc.wrongBase} ${sc.perDiff >= 0 ? '+' : '−'} ${Math.abs(sc.perDiff)} × |Ansage − Stiche|` +
             (sc.tricksWhenWrong ? ` ${sc.perTrick >= 0 ? '+' : '−'} ${Math.abs(sc.perTrick)} × Stiche` : '');
-  const c = sc.zeroFromRound > 0
-    ? `  ·  ab Runde ${sc.zeroFromRound}: getroffene Ansage 0 = ${sc.zeroBonus} Punkte` : '';
+  const c = sc.zeroFromCards > 0
+    ? `  ·  ab ${sc.zeroFromCards} Karten: getroffene Ansage 0 = ${sc.zeroBonus} Punkte` : '';
   return a + '  ·  ' + b + c + (sc.lowestWins ? '  ·  wenigste Punkte gewinnen' : '');
 }
 
@@ -908,7 +917,7 @@ function bindEvents() {
   const scoreInputs = {
     '#cfgBonus': 'bonus', '#cfgPerTrick': 'perTrick',
     '#cfgPerDiff': 'perDiff', '#cfgWrongBase': 'wrongBase',
-    '#cfgZeroFromRound': 'zeroFromRound', '#cfgZeroBonus': 'zeroBonus'
+    '#cfgZeroFromCards': 'zeroFromCards', '#cfgZeroBonus': 'zeroBonus'
   };
   for (const [sel, key] of Object.entries(scoreInputs)) {
     $(sel).oninput = e => {
