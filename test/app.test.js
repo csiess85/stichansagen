@@ -182,6 +182,8 @@ ok(JSON.stringify(bcc({ mode: 'up', maxCards: 3, extraSingles: true, players: 3 
    === '[1,2,3,1,1,1]', 'greift auch bei aufsteigend');
 ok(JSON.stringify(bcc({ mode: 'updown', maxCards: 5, extraSingles: true }))
    === '[1,2,3,4,5,4,3,2,1]', 'ohne Spielerzahl (alter Spielstand) unverändert');
+ok(bcc({ mode: 'fixed', rounds: 10, fixedCards: 5, extraSingles: true, players: 4 }).length === 10,
+   'bei "Feste Runden" bleibt die eingestellte Rundenzahl unangetastet');
 
 const rs = api.roundScore;
 const wiz = { bonus: 20, perTrick: 10, perDiff: -10, wrongBase: 0, tricksWhenWrong: false };
@@ -315,6 +317,17 @@ ok(JSON.stringify(g5.rounds.slice(-4).map(r => r.dealer)) === '[1,2,3,0]',
    'Geber rotiert auch in den Einer-Runden weiter: ' + g5.rounds.slice(-4).map(r => r.dealer).join(','));
 ok(new Set(g5.rounds.slice(-4).map(r => r.dealer)).size === 4,
    'in den 4 Einer-Runden gibt jeder Spieler genau einmal');
+
+// Checkbox bei "Feste Runden" ausgeblendet und ohne Wirkung
+c5(qa5('#setupMode .chip').find(c => c.textContent === 'Feste Runden'));
+ok(q5('#cfgExtraSingles').closest('.check').hidden === true,
+   'Option bei "Feste Runden" ausgeblendet');
+s5(q5('#setupRounds'), '10'); s5(q5('#setupFixedCards'), '5');
+ok(q5('#setupPreview').textContent.startsWith('10 Runden ·'),
+   'eingestellte Rundenzahl gilt unverändert: ' + q5('#setupPreview').textContent);
+c5(qa5('#setupMode .chip').find(c => c.textContent === 'Auf und ab'));
+ok(q5('#cfgExtraSingles').closest('.check').hidden === false,
+   'Option bei "Auf und ab" wieder sichtbar');
 
 console.log('\n== Sichtbarkeit: [hidden] gegen eigene display-Regeln ==');
 // styles.css inline einspielen, damit getComputedStyle die Kaskade sieht.

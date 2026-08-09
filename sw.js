@@ -1,5 +1,5 @@
 /* Einfacher Offline-Cache. Bei jedem Deploy CACHE hochzählen. */
-const CACHE = 'stichansagen-v5';
+const CACHE = 'stichansagen-v6';
 const ASSETS = [
   './',
   './index.html',

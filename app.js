@@ -132,6 +132,13 @@ function range(from, to) {
   return out;
 }
 
+/** Anzahl der Einer-Runden, die hinten angehängt werden. Bei "Feste Runden"
+    gibt die Rundenzahl der Nutzer vor – dort greift die Hausregel nicht. */
+function extraSingleRounds(cfg) {
+  if (!cfg.extraSingles || cfg.mode === 'fixed') return 0;
+  return Math.max(0, cfg.players | 0);
+}
+
 function buildCardCounts(cfg) {
   const max = Math.max(1, cfg.maxCards | 0);
   let counts;
@@ -143,11 +150,9 @@ function buildCardCounts(cfg) {
     case 'updown':
     default:       counts = max === 1 ? [1] : [...range(1, max), ...range(max - 1, 1)];
   }
-  // Hausregel: nach dem regulären Verlauf noch je Spieler eine Runde mit einer Karte,
-  // damit jeder einmal bei einer Karte gibt.
-  if (cfg.extraSingles && cfg.players > 0) {
-    counts = [...counts, ...Array(cfg.players).fill(1)];
-  }
+  // Hausregel: nach dem regulären Verlauf noch je Spieler eine Runde mit einer Karte.
+  const extra = extraSingleRounds(cfg);
+  if (extra > 0) counts = [...counts, ...Array(extra).fill(1)];
   return counts;
 }
 
@@ -356,6 +361,7 @@ function renderSetup() {
   $('#setupFixedCards').value = String(d.fixedCards);
 
   const isFixed = d.mode === 'fixed';
+  $('#cfgExtraSingles').closest('.check').hidden = isFixed;
   $('#fixedWrap').hidden = !isFixed;
   $('#setupMaxCards').closest('.field').hidden = isFixed;
   $('#setupDeck').closest('.field').hidden = isFixed;
@@ -994,8 +1000,8 @@ function previewText() {
   const preview = counts.length > 12
     ? counts.slice(0, 6).join(', ') + ' … ' + counts.slice(-4).join(', ')
     : counts.join(', ');
-  const extra = d.extraSingles
-    ? ` (davon ${d.players.length} Einer-Runden zum Schluss)` : '';
+  const n = extraSingleRounds(cfgFromDraft(d));
+  const extra = n > 0 ? ` (davon ${n} Einer-Runden zum Schluss)` : '';
   return `${counts.length} Runden${extra} · Karten je Runde: ${preview}`;
 }
 
