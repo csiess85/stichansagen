@@ -9,7 +9,7 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="icon.svg">
-<link rel="stylesheet" href="styles.css">
+<link rel="stylesheet" href="styles.css?v=8">
 </head>
 <body>
 
@@ -37,7 +37,8 @@
         <button class="btn ghost" id="btnImport">Daten importieren</button>
         <input type="file" id="fileImport" accept="application/json,.json" hidden>
       </div>
-      <p class="hint">Alle Daten liegen nur in diesem Browser (localStorage). Kein Konto, kein Server.</p>
+      <p class="hint">Alle Daten liegen nur in diesem Browser (localStorage). Kein Konto, kein Server.<br>
+        Version <span id="appVersion"></span></p>
     </div>
   </section>
 
@@ -217,6 +218,6 @@
 
 <div class="toast" id="toast" hidden></div>
 
-<script src="app.js"></script>
+<script src="app.js?v=8"></script>
 </body>
 </html>

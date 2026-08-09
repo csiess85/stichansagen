@@ -109,8 +109,12 @@ jobs:
 
 In **Settings → Pages** dann als **Source** `GitHub Actions` wählen.
 
-> Nach jedem Deploy in `sw.js` die Konstante `CACHE` hochzählen (`stichansagen-v2`, …),
-> damit alte Dateien sicher aus dem Cache fliegen.
+> **Vor jedem Deploy `./bump-version.sh <n>` ausführen.** GitHub Pages liefert alle Dateien mit
+> `Cache-Control: max-age=600` aus – ohne neue Versionsnummer holt der Browser bis zu zehn Minuten
+> lang die alte `app.js` zu einer bereits neuen `index.html`, was zu schwer nachvollziehbaren
+> Fehlern führt. Das Skript setzt die Version in `index.html` (`?v=`), `app.js` (`APP_VERSION`)
+> und `sw.js` (Cache-Name und Asset-Liste) gemeinsam; ein Test prüft, dass alle vier
+> Angaben übereinstimmen. Die laufende Version steht unten auf dem Startbildschirm.
 
 ## Datenhaltung
 
@@ -140,4 +144,5 @@ npm test
 | `sw.js` | Service Worker für Offline-Betrieb |
 | `manifest.webmanifest`, `icon*.svg` | PWA-Installation |
 | `.nojekyll` | verhindert Jekyll-Verarbeitung auf GitHub Pages |
+| `bump-version.sh` | setzt die Version vor dem Deploy an allen Stellen |
 | `test/app.test.js` | Integrationstest in jsdom |

@@ -4,7 +4,7 @@ const { JSDOM } = require('jsdom');
 
 const DIR = path.join(__dirname, '..');
 const html = fs.readFileSync(path.join(DIR, 'index.html'), 'utf8')
-  .replace('<script src="app.js"></script>', '');
+  .replace(/<script src="app\.js[^"]*"><\/script>/, '');
 
 let failed = 0;
 function ok(cond, msg) {
@@ -329,11 +329,26 @@ c5(qa5('#setupMode .chip').find(c => c.textContent === 'Auf und ab'));
 ok(q5('#cfgExtraSingles').closest('.check').hidden === false,
    'Option bei "Auf und ab" wieder sichtbar');
 
+console.log('\n== Versionsstempel (gegen alte Dateien aus dem Browser-Cache) ==');
+const idxSrc = fs.readFileSync(path.join(DIR, 'index.html'), 'utf8');
+const appSrc = fs.readFileSync(path.join(DIR, 'app.js'), 'utf8');
+const swSrc  = fs.readFileSync(path.join(DIR, 'sw.js'), 'utf8');
+const vApp   = (appSrc.match(/const APP_VERSION = '(\d+)'/) || [])[1];
+const vCache = (swSrc.match(/stichansagen-v(\d+)/) || [])[1];
+const vLinks = [...idxSrc.matchAll(/(?:styles\.css|app\.js)\?v=(\d+)/g)].map(m => m[1]);
+const vSwAss = [...swSrc.matchAll(/(?:styles\.css|app\.js)\?v=(\d+)/g)].map(m => m[1]);
+ok(vApp !== undefined, 'app.js hat APP_VERSION: ' + vApp);
+ok(vLinks.length === 2, 'index.html stempelt beide Assets: ' + vLinks.join(','));
+ok(vSwAss.length === 2, 'sw.js listet beide Assets gestempelt: ' + vSwAss.join(','));
+ok(new Set([vApp, vCache, ...vLinks, ...vSwAss]).size === 1,
+   `alle Versionsangaben identisch (app=${vApp}, cache=${vCache}, html=${vLinks.join('/')}, sw=${vSwAss.join('/')})`);
+ok(d2.querySelector('#appVersion') !== null, 'Version wird auf dem Startbildschirm angezeigt');
+
 console.log('\n== Sichtbarkeit: [hidden] gegen eigene display-Regeln ==');
 // styles.css inline einspielen, damit getComputedStyle die Kaskade sieht.
 const css = fs.readFileSync(path.join(DIR, 'styles.css'), 'utf8');
 const html4 = html.replace('</head>', '<style>' + css + '</style></head>')
-                  .replace('<link rel="stylesheet" href="styles.css">', '');
+                  .replace(/<link rel="stylesheet" href="styles\.css[^"]*">/, '');
 const dom4 = new JSDOM(html4, { url: 'https://example.com/x/', runScripts: 'outside-only', pretendToBeVisual: true });
 dom4.window.scrollTo = () => {};
 dom4.window.eval(fs.readFileSync(path.join(DIR, 'app.js'), 'utf8'));

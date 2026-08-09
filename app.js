@@ -4,6 +4,7 @@
    ========================================================= */
 'use strict';
 
+const APP_VERSION = '8';   // muss zu sw.js und den ?v= in index.html passen
 const STORE_KEY = 'stichansagen.v1';
 const THEME_KEY = 'stichansagen.theme';
 
@@ -261,6 +262,7 @@ function render() {
    ========================================================= */
 function renderHome() {
   $('#appTitle').textContent = 'Stichansagen';
+  $('#appVersion').textContent = APP_VERSION;
 
   const sorted = [...games()].sort((a, b) => b.updatedAt - a.updatedAt);
   const running  = sorted.filter(g => !g.finished);

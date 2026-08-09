@@ -1,10 +1,10 @@
 /* Einfacher Offline-Cache. Bei jedem Deploy CACHE hochzählen. */
-const CACHE = 'stichansagen-v6';
+const CACHE = 'stichansagen-v8';
 const ASSETS = [
   './',
   './index.html',
-  './styles.css',
-  './app.js',
+  './styles.css?v=8',
+  './app.js?v=8',
   './manifest.webmanifest',
   './icon.svg',
   './icon-maskable.svg'
@@ -31,8 +31,12 @@ self.addEventListener('fetch', event => {
   if (req.method !== 'GET' || new URL(req.url).origin !== location.origin) return;
 
   // Netz zuerst, damit ein neues Deploy sofort ankommt; Cache als Rückfallebene.
+  // Für das HTML am HTTP-Cache vorbei (GitHub Pages liefert max-age=600), sonst
+  // kann eine alte index.html neue Assets referenzieren – oder umgekehrt.
+  const opts = req.mode === 'navigate' || req.destination === 'document'
+    ? { cache: 'reload' } : undefined;
   event.respondWith(
-    fetch(req)
+    fetch(req, opts)
       .then(res => {
         const copy = res.clone();
         caches.open(CACHE).then(c => c.put(req, copy));
