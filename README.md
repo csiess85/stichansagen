@@ -13,9 +13,12 @@ Alle Spielstände liegen ausschließlich im `localStorage` des jeweiligen Browse
   folgt je Spieler eine Runde mit nur einer Karte, sodass darin jeder genau einmal gibt.
   Bei 4 Spielern und max. 5 Karten also `1,2,3,4,5,4,3,2,1` + `1,1,1,1` = 13 Runden. Abschaltbar.
   Bei „Feste Runden" gilt die Regel nicht, dort gibt die eingestellte Rundenzahl den Umfang vor.
-- **Erfassung in zwei Schritten** je Runde: erst Ansagen, dann Stiche – jeweils per großer Zahlenknöpfe statt Tastatur.
-  - Live-Summe der Ansagen mit Hinweis „x zu viel/zu wenig angesagt".
-  - Runde lässt sich erst abschließen, wenn die Stiche exakt der Kartenzahl entsprechen.
+- **Erfassung je Runde in einer Ansicht**: pro Spieler ein Block mit Ansage und Stichen
+  untereinander, jeweils per großer Zahlenknöpfe statt Tastatur. Reihenfolge der Blöcke =
+  Ansagereihenfolge, der Geber steht zuletzt und ist hervorgehoben.
+  - Live-Summen für Ansagen und Stiche in der Fußzeile.
+  - Runde lässt sich erst abschließen, wenn alle Werte gesetzt sind und die Stiche exakt der
+    Kartenzahl entsprechen.
   - Optionale Geber-Regel: Die Ansagen dürfen nicht aufgehen – der verbotene Wert des Gebers wird gesperrt.
 - **Wertung** als Preset oder frei konfigurierbar:
 

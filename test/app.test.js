@@ -72,10 +72,19 @@ const firstEntry = $$('#entryList .entry')[0];
 ok(firstEntry.querySelector('.entry-name').textContent === 'Ben', 'Ansage beginnt links vom Geber: ' + firstEntry.querySelector('.entry-name').textContent);
 const lastEntry = $$('#entryList .entry')[3];
 ok(lastEntry.classList.contains('dealer'), 'Geber sagt zuletzt an');
+ok($$('#entryList .entry').length === 4, 'ein Block je Spieler');
+ok(firstEntry.querySelectorAll('.numgrid').length === 2,
+   'je Spieler zwei Eingabezeilen (Ansage und Stiche)');
+ok(Array.from(firstEntry.querySelectorAll('.inputlabel')).map(n => n.textContent)
+   .join('/') === 'Ansage/Stiche', 'Zeilen sind beschriftet');
+ok($('#entryList').textContent.includes('Ansage') && $('#entryList').textContent.includes('Stiche'),
+   'beides gleichzeitig sichtbar');
 
-function pick(entryIdx, value) {
+// row 0 = Ansage, row 1 = Stiche
+function pick(entryIdx, value, row = 0) {
   const entry = $$('#entryList .entry')[entryIdx];
-  const btn = Array.from(entry.querySelectorAll('.num')).find(b => b.textContent === String(value));
+  const grid = entry.querySelectorAll('.numgrid')[row];
+  const btn = Array.from(grid.querySelectorAll('.num')).find(b => b.textContent === String(value));
   if (!btn) throw new Error('Knopf ' + value + ' nicht gefunden');
   click(btn);
   return btn;
@@ -83,20 +92,21 @@ function pick(entryIdx, value) {
 // Ben 1, Clara 1, Dora 0  -> Summe 2 = Kartenzahl -> Anna darf 0 nicht wählen
 pick(0, 1); pick(1, 1); pick(2, 0);
 const annaEntry = $$('#entryList .entry')[3];
-const zeroBtn = Array.from(annaEntry.querySelectorAll('.num')).find(b => b.textContent === '0');
+const zeroBtn = Array.from(annaEntry.querySelectorAll('.numgrid')[0].querySelectorAll('.num'))
+  .find(b => b.textContent === '0');
 ok(zeroBtn.disabled, 'Geber-Regel: verbotene Ansage 0 ist gesperrt');
 ok($('#btnRoundNext').disabled, 'Weiter noch gesperrt, Ansage fehlt');
 pick(3, 1);
-ok(!$('#btnRoundNext').disabled, 'Weiter frei nach allen Ansagen');
-ok($('#sumBox').textContent === 'Ansagen: 3 / 21 zu viel angesagt',
-   'Summenanzeige ohne Textreste: ' + JSON.stringify($('#sumBox').textContent));
+ok($('#btnRoundNext').disabled, 'Abschließen noch gesperrt, Stiche fehlen');
+ok($('#sumBox').textContent === 'Ansagen 3 · Stiche 0 / 2noch nicht alle Werte erfasst',
+   'Summenanzeige zeigt beides: ' + JSON.stringify($('#sumBox').textContent));
 
-console.log('\n== Runde 1: Stiche ==');
-click($('#btnRoundNext'));
-ok($('#tabTrick').classList.contains('on'), 'Phase Stiche aktiv');
+console.log('\n== Runde 1: Stiche in derselben Ansicht ==');
+// Reihenfolge der Blöcke: Ben, Clara, Dora, Anna
 // Anna 1, Ben 1, Clara 0, Dora 0 -> Summe 2 ✓
-pick(0, 1); pick(1, 1); pick(2, 0); pick(3, 0);
+pick(3, 1, 1); pick(0, 1, 1); pick(1, 0, 1); pick(2, 0, 1);
 ok(!$('#btnRoundNext').disabled, 'Abschließen möglich bei korrekter Stichsumme');
+ok($('#btnRoundNext').textContent === 'Runde abschließen', 'nur noch ein Knopf pro Runde');
 click($('#btnRoundNext'));
 ok($('#roundLabel').textContent === 'Runde 2 / 2', 'Runde 2 begonnen');
 ok($('#roundDealer').textContent.startsWith('Geber: Ben'), 'Geber rotiert: ' + $('#roundDealer').textContent);
@@ -122,7 +132,7 @@ click($('#scoreTable').querySelector('tbody tr'));
 ok(!$('#sheet').hidden, 'Bearbeiten-Sheet geöffnet');
 // Clara auf 0 angesagt setzen -> richtig -> +20 statt -10
 const claraBlock = $$('#sheetBody .entry')[2];
-const claraBidBtns = Array.from(claraBlock.querySelectorAll('.numgrid'))[0].querySelectorAll('.num');
+const claraBidBtns = claraBlock.querySelectorAll('.numgrid')[0].querySelectorAll('.num');
 click(Array.from(claraBidBtns).find(b => b.textContent === '0'));
 click($('#btnSheetSave'));
 ok($('#sheet').hidden, 'Sheet nach Speichern geschlossen');
@@ -236,14 +246,14 @@ cclick(cq('#btnStartGame'));
 
 // 8 Runden mit 1..8 Karten: Eva sagt immer 0 und macht 0, Finn nimmt alle Stiche
 for (let cards = 1; cards <= 8; cards++) {
-  for (const phase of [0, 1]) {
-    cqa('#entryList .entry').forEach(entry => {
-      const name = entry.querySelector('.entry-name').textContent;
-      const want = name === 'Eva' ? 0 : cards;
-      cclick(Array.from(entry.querySelectorAll('.num')).find(b => b.textContent === String(want)));
+  cqa('#entryList .entry').forEach(entry => {
+    const name = entry.querySelector('.entry-name').textContent;
+    const want = name === 'Eva' ? 0 : cards;
+    entry.querySelectorAll('.numgrid').forEach(grid => {   // Ansage und Stiche
+      cclick(Array.from(grid.querySelectorAll('.num')).find(b => b.textContent === String(want)));
     });
-    cclick(cq('#btnRoundNext'));          // erst zu den Stichen, dann abschließen
-  }
+  });
+  cclick(cq('#btnRoundNext'));            // Runde in einem Schritt abschließen
 }
 cclick(cqa('.tabbtn').find(b => b.dataset.view === 'table'));
 const heads2 = Array.from(cq('#scoreTable').querySelectorAll('thead th')).map(t => t.textContent);

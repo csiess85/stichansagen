@@ -4,7 +4,7 @@
    ========================================================= */
 'use strict';
 
-const APP_VERSION = '8';   // muss zu sw.js und den ?v= in index.html passen
+const APP_VERSION = '9';   // muss zu sw.js und den ?v= in index.html passen
 const STORE_KEY = 'stichansagen.v1';
 const THEME_KEY = 'stichansagen.theme';
 
@@ -219,7 +219,6 @@ function statsFor(game) {
 const ui = {
   view: 'home',       // home | setup | game | table
   gameId: null,
-  phase: 'bid',       // bid | trick
   draft: null,        // Setup-Entwurf
   sheetRound: null
 };
@@ -284,7 +283,7 @@ function fillGameList(node, list, emptyText) {
     const lead = rank[0];
     node.append(el('button', {
       class: 'gcard',
-      onclick: () => { ui.gameId = g.id; ui.phase = phaseForGame(g); show(g.finished ? 'table' : 'game'); }
+      onclick: () => { ui.gameId = g.id; show(g.finished ? 'table' : 'game'); }
     },
       el('div', { class: 'gcard-main' },
         el('div', { class: 'gcard-title', text: g.name || g.players.map(p => p.name).join(', ') }),
@@ -452,7 +451,6 @@ function startGame() {
   store.games.push(game);
   saveStore();
   ui.gameId = game.id;
-  ui.phase = 'bid';
   show('game');
 }
 
@@ -462,12 +460,6 @@ function startGame() {
 function activeRoundIndex(game) {
   const i = game.rounds.findIndex(r => !r.done);
   return i === -1 ? game.rounds.length - 1 : i;
-}
-
-function phaseForGame(game) {
-  const r = game.rounds[activeRoundIndex(game)];
-  if (!r) return 'bid';
-  return bidsComplete(game, r) ? 'trick' : 'bid';
 }
 
 /** Ansagereihenfolge: links vom Geber beginnend, Geber zuletzt. */
@@ -482,75 +474,69 @@ const bidsComplete   = (g, r) => g.players.every(p => Number.isInteger(r.bids[p.
 const tricksComplete = (g, r) => g.players.every(p => Number.isInteger(r.tricks[p.id]));
 const sumOf = (g, map) => g.players.reduce((s, p) => s + (map[p.id] ?? 0), 0);
 
+/** Wert, den der Geber nicht ansagen darf, weil die Ansagen sonst aufgehen.
+    null, solange noch nicht alle anderen angesagt haben. */
+function forbiddenBid(game, round, bids, playerId) {
+  const others = game.players.filter(x => x.id !== playerId);
+  if (!others.every(x => Number.isInteger(bids[x.id]))) return null;
+  const rest = round.cards - others.reduce((sum, x) => sum + bids[x.id], 0);
+  return rest >= 0 && rest <= round.cards ? rest : null;
+}
+
+/** Ein Spielerblock mit Ansage und Stichen untereinander.
+    state hält { bids, tricks } – im Spiel die Runde selbst, im Sheet der Entwurf. */
+function playerEntry(game, round, state, p, opts) {
+  const isDealer = game.players[round.dealer].id === p.id;
+  const blocked = (opts.strict !== false && game.strictDealer && isDealer)
+    ? forbiddenBid(game, round, state.bids, p.id) : null;
+
+  const grid = (map, block) => el('div', { class: 'numgrid' },
+    range(0, round.cards).map(v => el('button', {
+      class: 'num' + (map[p.id] === v ? ' on' : ''),
+      disabled: block === v && map[p.id] !== v,
+      text: String(v),
+      onclick: () => {
+        if (map[p.id] === v) delete map[p.id]; else map[p.id] = v;
+        opts.onChange();
+      }
+    })));
+
+  const note = isDealer ? 'Geber'
+    : (opts.position === undefined ? '' : `${opts.position + 1}. Ansage`);
+
+  return el('div', { class: 'entry' + (isDealer ? ' dealer' : '') },
+    el('div', { class: 'entry-head' },
+      el('span', { class: 'entry-name', text: p.name }),
+      el('span', { class: 'entry-meta', text: note })
+    ),
+    el('div', { class: 'inputrow' },
+      el('span', { class: 'inputlabel', text: 'Ansage' }), grid(state.bids, blocked)),
+    el('div', { class: 'inputrow' },
+      el('span', { class: 'inputlabel', text: 'Stiche' }), grid(state.tricks, null))
+  );
+}
+
 function renderGame() {
   const game = currentGame();
   if (!game) { show('home'); return; }
 
   $('#appTitle').textContent = game.name;
 
+  if (game.rounds.every(r => r.done)) { renderFinish(game); return; }
+
   const ri = activeRoundIndex(game);
   const round = game.rounds[ri];
-  const allDone = game.rounds.every(r => r.done);
-
-  if (allDone) { renderFinish(game); return; }
 
   $('#roundLabel').textContent = `Runde ${ri + 1} / ${game.rounds.length}`;
   $('#roundCards').textContent = round.cards === 1 ? '1 Karte' : `${round.cards} Karten`;
   $('#roundDealer').textContent =
     `Geber: ${game.players[round.dealer].name} · Ansage beginnt: ${bidOrder(game, round)[0].name}`;
 
-  if (ui.phase === 'trick' && !bidsComplete(game, round)) ui.phase = 'bid';
-  $('#tabBid').classList.toggle('on', ui.phase === 'bid');
-  $('#tabTrick').classList.toggle('on', ui.phase === 'trick');
-  $('#tabTrick').disabled = false;
-
-  const list = $('#entryList');
-  list.replaceChildren();
-
-  const order = ui.phase === 'bid' ? bidOrder(game, round) : game.players;
-  const map = ui.phase === 'bid' ? round.bids : round.tricks;
-
-  order.forEach((p, idx) => {
-    const isDealer = game.players[round.dealer].id === p.id;
-    const blocked = new Set();
-
-    if (ui.phase === 'bid' && game.strictDealer && isDealer) {
-      // Geber darf die Summe nicht genau auf die Kartenzahl bringen
-      const others = game.players
-        .filter(x => x.id !== p.id)
-        .reduce((s, x) => s + (round.bids[x.id] ?? 0), 0);
-      const othersKnown = game.players
-        .filter(x => x.id !== p.id)
-        .every(x => Number.isInteger(round.bids[x.id]));
-      if (othersKnown) {
-        const forbidden = round.cards - others;
-        if (forbidden >= 0 && forbidden <= round.cards) blocked.add(forbidden);
-      }
-    }
-
-    const entry = el('div', { class: 'entry' + (isDealer ? ' dealer' : '') },
-      el('div', { class: 'entry-head' },
-        el('span', { class: 'entry-name', text: p.name }),
-        el('span', { class: 'entry-meta',
-          text: ui.phase === 'bid'
-            ? (isDealer ? 'Geber · sagt zuletzt an' : `${idx + 1}. Ansage`)
-            : `Ansage: ${round.bids[p.id] ?? '–'}` })
-      ),
-      el('div', { class: 'numgrid' },
-        range(0, round.cards).map(v => el('button', {
-          class: 'num' + (map[p.id] === v ? ' on' : ''),
-          disabled: blocked.has(v) && map[p.id] !== v,
-          text: String(v),
-          onclick: () => {
-            if (map[p.id] === v) delete map[p.id]; else map[p.id] = v;
-            touch(game);
-            renderGame();
-          }
-        }))
-      )
-    );
-    list.append(entry);
-  });
+  $('#entryList').replaceChildren(...bidOrder(game, round).map((p, idx) =>
+    playerEntry(game, round, round, p, {
+      position: idx,
+      onChange: () => { touch(game); renderGame(); }
+    })));
 
   updateSumBox(game, round);
 }
@@ -561,54 +547,34 @@ function updateSumBox(game, round) {
   box.className = 'sumbox';
   box.replaceChildren();
 
-  if (ui.phase === 'bid') {
-    const sum = sumOf(game, round.bids);
-    const complete = bidsComplete(game, round);
-    const diff = sum - round.cards;
-    let note;
-    if (!complete) note = 'noch nicht alle Ansagen';
-    else if (diff === 0) note = 'geht genau auf';
-    else if (diff > 0) note = `${diff} zu viel angesagt`;
-    else note = `${-diff} zu wenig angesagt`;
+  const bidSum = sumOf(game, round.bids);
+  const trickSum = sumOf(game, round.tricks);
+  const bidsOk = bidsComplete(game, round);
+  const tricksOk = tricksComplete(game, round);
+  const sumOk = tricksOk && trickSum === round.cards;
 
-    box.append(el('b', { text: `Ansagen: ${sum} / ${round.cards}` }), note);
-    if (complete && diff === 0) box.classList.add('warn');
-    btn.textContent = 'Zu den Stichen';
-    btn.disabled = !complete;
-  } else {
-    const sum = sumOf(game, round.tricks);
-    const complete = tricksComplete(game, round);
-    const ok = complete && sum === round.cards;
-    box.append(el('b', { text: `Stiche: ${sum} / ${round.cards}` }),
-      ok ? 'passt' : (complete ? 'Summe muss der Kartenzahl entsprechen' : 'noch nicht alle Stiche'));
-    if (ok) box.classList.add('good');
-    else if (complete) box.classList.add('bad');
-    btn.textContent = 'Runde abschließen';
-    btn.disabled = !ok;
-  }
+  box.append(el('b', { text: `Ansagen ${bidSum} · Stiche ${trickSum} / ${round.cards}` }));
+  if (!bidsOk || !tricksOk) box.append('noch nicht alle Werte erfasst');
+  else if (!sumOk) box.append('Summe der Stiche muss der Kartenzahl entsprechen');
+  else box.append(bidSum === round.cards ? 'passt – Ansagen gehen auf' : 'passt');
+
+  if (bidsOk && sumOk) box.classList.add('good');
+  else if (tricksOk && !sumOk) box.classList.add('bad');
+
+  btn.textContent = 'Runde abschließen';
+  btn.disabled = !(bidsOk && sumOk);
 }
 
 function nextStep() {
   const game = currentGame();
   const ri = activeRoundIndex(game);
-  const round = game.rounds[ri];
-
-  if (ui.phase === 'bid') {
-    ui.phase = 'trick';
-    renderGame();
-    return;
-  }
-
-  round.done = true;
-  // Restliche Runden mit fehlenden Ansagen unberührt lassen
-  const allDone = game.rounds.every(r => r.done);
-  game.finished = allDone;
+  game.rounds[ri].done = true;
+  game.finished = game.rounds.every(r => r.done);
   touch(game);
 
-  if (allDone) {
+  if (game.finished) {
     renderFinish(game);
   } else {
-    ui.phase = 'bid';
     renderGame();
     const scores = ranking(game);
     toast(`Runde ${ri + 1} gespeichert · vorn: ${scores[0].name} (${scores[0].score})`);
@@ -621,8 +587,6 @@ function renderFinish(game) {
   $('#roundCards').textContent = `${game.rounds.length} Runden`;
   $('#roundDealer').textContent = game.scoring.lowestWins
     ? 'Wenigste Punkte gewinnen' : 'Meiste Punkte gewinnen';
-  $('#tabBid').classList.remove('on');
-  $('#tabTrick').classList.remove('on');
 
   const rank = ranking(game);
   const list = $('#entryList');
@@ -758,39 +722,16 @@ function closeSheet() {
 
 function renderSheet() {
   const game = currentGame();
-  const s = ui.sheetRound;
-  const round = game.rounds[s.index];
-  const body = $('#sheetBody');
-  body.replaceChildren();
+  const st = ui.sheetRound;
+  const round = game.rounds[st.index];
+  const sum = game.players.reduce((a, p) => a + (st.tricks[p.id] ?? 0), 0);
 
-  for (const p of game.players) {
-    body.append(el('div', { class: 'entry' },
-      el('div', { class: 'entry-head' },
-        el('span', { class: 'entry-name', text: p.name }),
-        el('span', { class: 'entry-meta',
-          text: game.players[round.dealer].id === p.id ? 'Geber' : '' })
-      ),
-      el('div', { class: 'badge-bid', text: 'Ansage' }),
-      el('div', { class: 'numgrid', style: 'margin:6px 0 10px' },
-        range(0, round.cards).map(v => el('button', {
-          class: 'num' + (s.bids[p.id] === v ? ' on' : ''), text: String(v),
-          onclick: () => { s.bids[p.id] = v; renderSheet(); }
-        }))
-      ),
-      el('div', { class: 'badge-bid', text: 'Stiche' }),
-      el('div', { class: 'numgrid', style: 'margin-top:6px' },
-        range(0, round.cards).map(v => el('button', {
-          class: 'num' + (s.tricks[p.id] === v ? ' on' : ''), text: String(v),
-          onclick: () => { s.tricks[p.id] = v; renderSheet(); }
-        }))
-      )
-    ));
-  }
-
-  const sum = game.players.reduce((a, p) => a + (s.tricks[p.id] ?? 0), 0);
-  body.append(el('p', { class: 'hint',
-    text: `Summe der Stiche: ${sum} / ${round.cards}` +
-          (sum === round.cards ? ' ✓' : ' — muss übereinstimmen') }));
+  $('#sheetBody').replaceChildren(
+    ...game.players.map(p => playerEntry(game, round, st, p,
+      { strict: false, onChange: renderSheet })),
+    el('p', { class: 'hint', text: `Summe der Stiche: ${sum} / ${round.cards}` +
+      (sum === round.cards ? ' ✓' : ' — muss übereinstimmen') })
+  );
 }
 
 function saveSheet() {
@@ -955,14 +896,6 @@ function bindEvents() {
   $('#btnStartGame').onclick = startGame;
 
   // Spiel
-  $('#tabBid').onclick   = () => { ui.phase = 'bid'; renderGame(); };
-  $('#tabTrick').onclick = () => {
-    const g = currentGame();
-    const r = g.rounds[activeRoundIndex(g)];
-    if (!bidsComplete(g, r)) { toast('Erst alle Ansagen erfassen'); return; }
-    ui.phase = 'trick';
-    renderGame();
-  };
   $('#btnRoundNext').onclick = () => {
     const g = currentGame();
     if (g.rounds.every(r => r.done)) { show('table'); return; }
